@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Optional
 from sqlmodel import Field, SQLModel
 from uuid import UUID, uuid4
 
@@ -29,4 +30,13 @@ class ProcessingJob(SQLModel, table=True):
 
     source_image_id: UUID = Field(foreign_key="image.id")
 
-    json_job_payload: str
+    # If this is non-null, the processing job is considered complete.
+    # If this is null, the job is still in progress.
+    destination_image_id: Optional[UUID] = Field(foreign_key="image.id")
+
+    # Must be a JSON-serialized string of type `InternalImageProcessingJob`,
+    # see `processing.py`.
+    job_json_payload: str
+
+    # A human-readable status.
+    status: Optional[str]

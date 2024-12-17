@@ -15,6 +15,7 @@ boto3 = "^1.35.82"
 boto3-stubs = {extras = ["essential"], version = "^1.35.82"}
 pyjwt = "^2.10.1"
 python-multipart = "^0.0.20"
+pyzmq = "^26.2.0"
 
 
 [build-system]

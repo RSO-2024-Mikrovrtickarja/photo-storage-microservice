@@ -42,7 +42,7 @@ class LocalFileSystemStorage(BaseFileStorage):
         full_file_path: Path = self._base_directory / file_name_only
 
         with full_file_path.open("rb") as file:
-            writable.write(file)
+            writable.write(file.read())
 
     def upload_file(self, file_name: str, readable: BinaryIO) -> str:
         file_name_only = Path(file_name).name
