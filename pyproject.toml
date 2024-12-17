@@ -1,0 +1,22 @@
+[tool.poetry]
+name = "micro-scale-storage"
+version = "0.1.0"
+description = ""
+authors = []
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+fastapi = {extras = ["standard"], version = "^0.115.5"}
+psycopg2 = "^2.9.10"
+sqlmodel = "^0.0.22"
+pydantic-settings = "^2.7.0"
+boto3 = "^1.35.82"
+boto3-stubs = {extras = ["essential"], version = "^1.35.82"}
+pyjwt = "^2.10.1"
+python-multipart = "^0.0.20"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
