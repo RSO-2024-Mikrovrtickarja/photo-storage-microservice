@@ -4,10 +4,41 @@ from typing import Annotated, Optional, Self
 from fastapi import Depends
 import zmq
 from pydantic import BaseModel
+from enum import Enum
+import uuid
 
 from core.configuration import settings
 
+class ImageFormat(Enum):
+    BLP = "BLP"
+    BMP = "BMP"
+    BUFR = "BUFR"
+    DDS = "DDS"
+    DIP = "DIB"
+    EPS = "EPS"
+    GIF = "GIF"
+    GRIB = "GRIB"
+    HDF5 = "HDF5"
+    ICNS = "ICNS"
+    ICO = "ICO"
+    IM = "IM"
+    JPEG = "JPEG"
+    JPEG2000 = "JPEG2000"
+    MPS = "MPS"
+    PCX = "PCX"
+    PNG = "PNG"
+    PPM = "PPM"
+    SGI = "SGI"
+    SPIDER = "SPIDER"
+    TGA = "TGA"
+    TIFF = "TIFF"
+    WEBP = "WEBP"
+    WMF = "WMF"
 
+
+class ImageProcessingJobStatus(Enum):
+    SUCCESS = "success"
+    ERROR = "error"
 
 class Singleton(type):
     _instances = {}
@@ -21,14 +52,17 @@ class Singleton(type):
 
 
 class InternalImageProcessingJob(BaseModel):
+    job_id: Optional[uuid.UUID]
+
     # This represents an image file path or S3 object name, 
     # depending on which storage backend is configured.
-    image_path: str
+    image_path: str 
+    image_id: uuid.UUID
 
     # These are the actual processing parameters.
     resize_image_to_width: int
     resize_image_to_height: int
-
+    change_to_format: str
 
 class InternalImageProcessingJobConfirmation(BaseModel):
     is_ok: bool

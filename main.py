@@ -16,7 +16,7 @@ from core.authentication import CurrentUserDependency
 from core.database import SessionDependency, create_db_and_tables
 from core.database.models import Image, ProcessingJob
 from core.storage import StorageDependency
-from core.processing import InternalImageProcessingJob, JobSubmitterDependency
+from core.processing import InternalImageProcessingJob, JobSubmitterDependency, ImageProcessingJobStatus, ImageFormat
 
 
 @asynccontextmanager
@@ -191,6 +191,7 @@ class PublicImageProcessingJobRequest(BaseModel):
 
     resize_image_to_width: int
     resize_image_to_height: int
+    change_to_format: ImageFormat
 
 
 @app.post("/image/{image_id}/jobs")
@@ -215,6 +216,9 @@ def submit_new_processing_job(
         image_path=source_image.file_path,
         resize_image_to_width=processing_job_specification.resize_image_to_width,
         resize_image_to_height=processing_job_specification.resize_image_to_height,
+        change_to_format=processing_job_specification.change_to_format.value,
+        job_id=None,
+        image_id=image_id,
     )
 
     serialized_internal_job_specification = internal_job_specification.model_dump_json()
@@ -229,6 +233,7 @@ def submit_new_processing_job(
     )
 
     database.add(processing_job_model)
+    internal_job_specification.job_id = processing_job_model.id
     job_submitter.submit_processing_job(internal_job_specification)
 
     database.commit()
@@ -314,7 +319,7 @@ def get_specific_image_job(
 
 class PublicImageProcessingJobUpdateRequest(BaseModel):
     destination_image_id: Optional[uuid.UUID]
-    status: Optional[str]
+    status: Optional[ImageProcessingJobStatus]
 
 
 @app.patch("/images/{image_id}/jobs/{job_id}")
@@ -336,7 +341,7 @@ def update_job_status_from_worker(
     
 
     target_image_job.destination_image_id = updated_details.destination_image_id
-    target_image_job.status = updated_details.status
+    target_image_job.status = updated_details.status.value
 
     database.add(target_image_job)
     database.commit()
