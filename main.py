@@ -317,22 +317,52 @@ def get_specific_image_job(
 
 
 
+
+@app.get("/worker/jobs/{job_id}/download-source-image")
+def download_specific_image_to_worker(
+    database: SessionDependency,
+    storage: StorageDependency,
+    image_id: Annotated[uuid.UUID, Path(title="The UUID of the image to download.")],
+):
+    target_image = database.exec(
+        select(Image)
+            .where(Image.id == image_id)
+    ).one_or_none()
+
+    if target_image is None:
+        raise HTTPException(status_code=404, detail="No such image.")
+    
+
+    intermediate_image_buffer = SpooledTemporaryFile(mode="w+b")
+
+    storage.download_file(target_image.file_path, intermediate_image_buffer)
+    intermediate_image_buffer.seek(0, os.SEEK_SET)
+
+    guessed_content_type = guess_type(target_image.file_name)[0] or "text/plain"
+
+    return StreamingResponse(
+        intermediate_image_buffer,
+        status_code=200,
+        headers={
+            "Accept-Ranges": "bytes",
+            "Content-Disposition": f"attachment; filename=\"{target_image.file_name}\""
+        },
+        media_type=guessed_content_type
+    )
+
+
 class PublicImageProcessingJobUpdateRequest(BaseModel):
-    destination_image_id: Optional[uuid.UUID]
-    status: Optional[ImageProcessingJobStatus]
+    status: ImageProcessingJobStatus
 
 
-@app.patch("/images/{image_id}/jobs/{job_id}")
+@app.patch("/worker/jobs/{job_id}")
 def update_job_status_from_worker(
     database: SessionDependency,
-    current_user: CurrentUserDependency,
-    image_id: Annotated[uuid.UUID, Path(title="The UUID of the image to update details for.")],
     job_id: Annotated[uuid.UUID, Path(title="The UUID of the job to update details for.")],
     updated_details: PublicImageProcessingJobUpdateRequest,
 ):
     target_image_job = database.exec(
         select(ProcessingJob)
-            .where(ProcessingJob.source_image_id == image_id)
             .where(ProcessingJob.id == job_id)
     ).one_or_none()
 
@@ -340,13 +370,62 @@ def update_job_status_from_worker(
         raise HTTPException(status_code=404, detail="No such job.")
     
 
-    target_image_job.destination_image_id = updated_details.destination_image_id
     target_image_job.status = updated_details.status.value
 
     database.add(target_image_job)
     database.commit()
 
     return { "ok": True }
+
+
+@app.post("/worker/jobs/{job_id}/finalize")
+def upload_proceessed_image_from_worker(
+    database: SessionDependency,
+    storage: StorageDependency,
+    job_id: Annotated[uuid.UUID, Path(title="The UUID of the job to finalize.")],
+    uploaded_file: UploadFile
+):
+    source_image_job = database.exec(
+        select(ProcessingJob)
+            .where(ProcessingJob.id == job_id)
+    ).one_or_none()
+
+    if source_image_job is None:
+        raise HTTPException(status_code=404, detail="No such job.")
+
+
+    source_image = database.exec(
+        select(Image)
+            .where(Image.id == source_image_job.source_image_id)
+    ).one_or_none()
+
+    if source_image is None:
+        raise HTTPException(status_code=404, detail="No associated image.")
+
+
+    final_file_path = storage.upload_file(
+        str(uploaded_file.filename),
+        uploaded_file.file
+    )
+
+    new_image = Image(
+        file_name=uploaded_file.filename,
+        file_path=final_file_path,
+        uploaded_at=datetime.now(tz=timezone.utc),
+        owned_by_user_id=source_image.owned_by_user_id
+    )
+    database.add(new_image)
+    database.commit()
+    database.refresh(new_image)
+
+
+    source_image_job.destination_image_id = new_image.id
+    database.add(source_image_job)
+    database.commit()
+    
+    return PublicSingleImageResponse(
+        image=PublicImage.from_database_image_model(new_image)
+    )
 
 
 
