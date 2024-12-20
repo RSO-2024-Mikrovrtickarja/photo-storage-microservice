@@ -57,7 +57,6 @@ class InternalImageProcessingJob(BaseModel):
     # This represents an image file path or S3 object name, 
     # depending on which storage backend is configured.
     image_path: str 
-    image_id: uuid.UUID
 
     # These are the actual processing parameters.
     resize_image_to_width: int
@@ -94,10 +93,9 @@ class ImageJobSubmitter(metaclass=Singleton):
         self._zmq_socket.send(serialized_job.encode("utf-8"))
 
         confirmation_reply_bytes = self._zmq_socket.recv()
-        confirmation_reply_json = json.loads(confirmation_reply_bytes)
 
         confirmation = InternalImageProcessingJobConfirmation.model_validate_json(
-            confirmation_reply_json
+            confirmation_reply_bytes
         )
 
         if confirmation.is_ok is not True:

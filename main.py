@@ -191,10 +191,10 @@ class PublicImageProcessingJobRequest(BaseModel):
 
     resize_image_to_width: int
     resize_image_to_height: int
-    change_to_format: ImageFormat
+    change_to_format: str
 
 
-@app.post("/image/{image_id}/jobs")
+@app.post("/images/{image_id}/jobs")
 def submit_new_processing_job(
     database: SessionDependency,
     current_user: CurrentUserDependency,
@@ -211,14 +211,15 @@ def submit_new_processing_job(
     if source_image is None:
         raise HTTPException(status_code=404, detail="No such image.")
 
+    if processing_job_specification.change_to_format not in set(img_format.value for img_format in ImageFormat):
+        raise HTTPException(status_code=404, detail="Incorrect image format.")
 
     internal_job_specification = InternalImageProcessingJob(
         image_path=source_image.file_path,
         resize_image_to_width=processing_job_specification.resize_image_to_width,
         resize_image_to_height=processing_job_specification.resize_image_to_height,
-        change_to_format=processing_job_specification.change_to_format.value,
+        change_to_format=processing_job_specification.change_to_format,
         job_id=None,
-        image_id=image_id,
     )
 
     serialized_internal_job_specification = internal_job_specification.model_dump_json()
@@ -322,37 +323,45 @@ def get_specific_image_job(
 def download_specific_image_to_worker(
     database: SessionDependency,
     storage: StorageDependency,
-    image_id: Annotated[uuid.UUID, Path(title="The UUID of the image to download.")],
+    job_id: Annotated[uuid.UUID, Path(title="The UUID of the job to finalize.")]
 ):
-    target_image = database.exec(
-        select(Image)
-            .where(Image.id == image_id)
+
+    source_image_job = database.exec(
+        select(ProcessingJob)
+            .where(ProcessingJob.id == job_id)
     ).one_or_none()
 
-    if target_image is None:
-        raise HTTPException(status_code=404, detail="No such image.")
-    
+    if source_image_job is None:
+        raise HTTPException(status_code=404, detail="No such job.")
+
+    source_image = database.exec(
+        select(Image)
+            .where(Image.id == source_image_job.source_image_id)
+    ).one_or_none()
+
+    if source_image is None:
+        raise HTTPException(status_code=404, detail="No associated image.")
 
     intermediate_image_buffer = SpooledTemporaryFile(mode="w+b")
 
-    storage.download_file(target_image.file_path, intermediate_image_buffer)
+    storage.download_file(source_image.file_path, intermediate_image_buffer)
     intermediate_image_buffer.seek(0, os.SEEK_SET)
 
-    guessed_content_type = guess_type(target_image.file_name)[0] or "text/plain"
+    guessed_content_type = guess_type(source_image.file_name)[0] or "text/plain"
 
     return StreamingResponse(
         intermediate_image_buffer,
         status_code=200,
         headers={
             "Accept-Ranges": "bytes",
-            "Content-Disposition": f"attachment; filename=\"{target_image.file_name}\""
+            "Content-Disposition": f"attachment; filename=\"{source_image.file_name}\""
         },
         media_type=guessed_content_type
     )
 
 
 class PublicImageProcessingJobUpdateRequest(BaseModel):
-    status: ImageProcessingJobStatus
+    status: str
 
 
 @app.patch("/worker/jobs/{job_id}")
@@ -370,7 +379,7 @@ def update_job_status_from_worker(
         raise HTTPException(status_code=404, detail="No such job.")
     
 
-    target_image_job.status = updated_details.status.value
+    target_image_job.status = updated_details.status
 
     database.add(target_image_job)
     database.commit()
@@ -426,8 +435,6 @@ def upload_proceessed_image_from_worker(
     return PublicSingleImageResponse(
         image=PublicImage.from_database_image_model(new_image)
     )
-
-
 
 
 if __name__ == "__main__":
