@@ -1,6 +1,5 @@
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
-from io import BytesIO
 import os
 from typing import Annotated, List, Optional, Self
 import uuid
@@ -16,7 +15,7 @@ from core.authentication import CurrentUserDependency
 from core.database import SessionDependency, create_db_and_tables
 from core.database.models import Image, ProcessingJob
 from core.storage import StorageDependency
-from core.processing import InternalImageProcessingJob, JobSubmitterDependency, ImageProcessingJobStatus, ImageFormat
+from core.processing import InternalImageProcessingJob, JobSubmitterDependency, ImageFormat
 
 
 @asynccontextmanager
