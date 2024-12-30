@@ -1,9 +1,8 @@
 from abc import ABCMeta, abstractmethod
 from pathlib import Path
-import boto3
 from typing import Annotated, BinaryIO
 from fastapi import Depends
-from mypy_boto3_s3 import S3Client
+from azure.storage.blob import BlobServiceClient, ContainerClient
 
 from .configuration import settings
 
@@ -62,52 +61,55 @@ class LocalFileSystemStorage(BaseFileStorage):
 
 
 
-class S3Storage(BaseFileStorage):
-    _s3_client: S3Client
+class AzureBlobStorage(BaseFileStorage):
+    _azure_client: BlobServiceClient
+    _blob_container: ContainerClient
 
     def __init__(self):
         super().__init__()
 
-        if settings.s3_service_url is None:
+        if settings.azure_blob_storage_shared_key is None:
             raise RuntimeError(
-                "Invalid configuration: storage backend is set to s3, \
-                 but s3_service_url is unset"
+                "Invalid configuration: storage backend is set to azure, \
+                 but azure_blob_storage_shared_key is unset"
             )
         
-        if settings.s3_bucket is None:
+        if settings.azure_blob_storage_url is None:
             raise RuntimeError(
-                "Invalid configuration: storage backend is set to s3, \
-                 but s3_bucket is unset"
+                "Invalid configuration: storage backend is set to azure, \
+                 but azure_blob_storage_url is unset"
             )
         
-        self._s3_client = boto3.client(
-            "s3",
-            use_ssl=True, verify=True,
-            endpoint_url=settings.s3_service_url
+        if settings.azure_blob_storage_container_name is None:
+            raise RuntimeError(
+                "Invalid configuration: storage backend is set to azure, \
+                 but azure_blob_storage_container_name is unset"
+            )
+        
+        self._azure_client = BlobServiceClient(
+            account_url=settings.azure_blob_storage_url,
+            credential=settings.azure_blob_storage_shared_key
         )
+
+        self._blob_container = self._azure_client.get_container_client(settings.azure_blob_storage_container_name)
 
 
     def download_file(self, object_name: str, writable: BinaryIO):
-        self._s3_client.download_file(
-            settings.s3_bucket,
-            object_name,
-            writable
-        )
+        blob_client = self._blob_container.get_blob_client(blob=object_name)
+        file_reader = blob_client.download_blob()
+
+        writable.write(file_reader.readall())
+        writable.seek(0)
     
     def upload_file(self, object_id: str, readable: BinaryIO) -> str:
-        self._s3_client.upload_file(
-            readable,
-            settings.s3_bucket,
-            object_id
-        )
+        blob_client = self._blob_container.get_blob_client(blob=object_id)
+        blob_client.upload_blob(data=readable.read())
 
         return object_id
     
     def delete_file(self, object_id: str):
-        self._s3_client.delete_object(
-            Bucket=settings.s3_bucket,
-            Key=object_id
-        )
+        blob_client = self._blob_container.get_blob_client(blob=object_id)
+        blob_client.delete_blob()
 
 
 
@@ -116,12 +118,12 @@ def get_storage_instance() -> BaseFileStorage:
 
     if storage_backend == "local":
         return LocalFileSystemStorage()
-    elif storage_backend == "s3":
-        return S3Storage()
+    elif storage_backend == "azure":
+        return AzureBlobStorage()
     else:
         raise RuntimeError(
             "Invalid storage_backend configuration value: \
-             expected either \"local\" or \"s3\"."
+             expected either \"local\" or \"azure\"."
         )
 
 StorageDependency = Annotated[BaseFileStorage, Depends(get_storage_instance)]

@@ -20,15 +20,16 @@ class Settings(BaseSettings):
     zmq_host: str
     zmq_port: int
 
-    # Can be set to either "local" or "s3".
+    # Can be set to either "local" or "azure".
     # If set to "local", the "local_filesystem_base_directory" value must be specified.
-    # If set to "s3", "s3_service_url" and "s3_bucket" must be specified.
+    # If set to "azure", "azure_blob_storage_"-prefixed fields must be specified.
     storage_backend: str
 
     local_filesystem_base_directory: Optional[str]
 
-    s3_service_url: Optional[str]
-    s3_bucket: Optional[str]
+    azure_blob_storage_url: Optional[str]
+    azure_blob_storage_container_name: Optional[str]
+    azure_blob_storage_shared_key: Optional[str]
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 

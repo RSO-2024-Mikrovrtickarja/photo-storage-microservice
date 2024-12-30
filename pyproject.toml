@@ -11,11 +11,11 @@ fastapi = {extras = ["standard"], version = "^0.115.5"}
 psycopg2 = "^2.9.10"
 sqlmodel = "^0.0.22"
 pydantic-settings = "^2.7.0"
-boto3 = "^1.35.82"
-boto3-stubs = {extras = ["essential"], version = "^1.35.82"}
 pyjwt = "^2.10.1"
 python-multipart = "^0.0.20"
 pyzmq = "^26.2.0"
+azure-storage-blob = "^12.24.0"
+azure-identity = "^1.19.0"
 
 
 [build-system]
