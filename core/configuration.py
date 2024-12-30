@@ -25,11 +25,11 @@ class Settings(BaseSettings):
     # If set to "azure", "azure_blob_storage_"-prefixed fields must be specified.
     storage_backend: str
 
-    local_filesystem_base_directory: Optional[str]
+    local_filesystem_base_directory: Optional[str] = None
 
-    azure_blob_storage_url: Optional[str]
-    azure_blob_storage_container_name: Optional[str]
-    azure_blob_storage_shared_key: Optional[str]
+    azure_blob_storage_url: Optional[str] = None
+    azure_blob_storage_container_name: Optional[str] = None
+    azure_blob_storage_shared_key: Optional[str] = None
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
