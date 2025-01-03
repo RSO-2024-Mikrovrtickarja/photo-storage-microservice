@@ -6,7 +6,7 @@ import string
 from typing import Annotated, List, Optional, Self
 import uuid
 from tempfile import SpooledTemporaryFile
-from fastapi import FastAPI, HTTPException, Path, UploadFile
+from fastapi import FastAPI, HTTPException, Path, UploadFile, Response
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlmodel import select
@@ -515,6 +515,13 @@ def upload_proceessed_image_from_worker(
     return PublicSingleImageResponse(
         image=PublicImage.from_database_image_model(new_image)
     )
+
+
+
+
+@app.get("/health")
+def health_check():
+    return Response(status_code=200)
 
 
 if __name__ == "__main__":
