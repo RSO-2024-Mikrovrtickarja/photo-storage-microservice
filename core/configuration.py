@@ -3,6 +3,10 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
+    # Base URL (e.g. "http://my.site") where this service is available at.
+    # This will be used to construct full share URLs.
+    base_http_url: str
+
     # Configures the connection to the PostgreSQL database.
     database_hostname: str
     database_port: str

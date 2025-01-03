@@ -1,6 +1,8 @@
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 import os
+import random
+import string
 from typing import Annotated, List, Optional, Self
 import uuid
 from tempfile import SpooledTemporaryFile
@@ -11,9 +13,10 @@ from sqlmodel import select
 from mimetypes import guess_type
 import uvicorn
 
+from core.configuration import settings
 from core.authentication import CurrentUserDependency
 from core.database import SessionDependency, create_db_and_tables
-from core.database.models import Image, ProcessingJob
+from core.database.models import Image, ProcessingJob, ShareUrl
 from core.storage import StorageDependency
 from core.processing import InternalImageProcessingJob, JobSubmitterDependency, ImageFormat
 
@@ -315,6 +318,84 @@ def get_specific_image_job(
         job=PublicImageJob.from_database_job_model(target_image_job)
     )
 
+
+
+
+class ImageShareUrlInfo(BaseModel):
+    full_url: str
+
+
+@app.post("/images/{image_id}/share-url")
+def generate_image_share_url(
+    database: SessionDependency,
+    current_user: CurrentUserDependency,
+    image_id: Annotated[uuid.UUID, Path(title="The UUID of the image to create the share URL for.")],
+):
+    source_image = database.exec(
+        select(Image)
+            .where(Image.owned_by_user_id == current_user.id)
+            .where(Image.id == image_id)
+    ).first()
+
+    if source_image is None:
+        raise HTTPException(status_code=404, detail="No such image.")
+
+
+    random_slug = "".join(random.choice(string.ascii_lowercase) for _ in range(12))
+
+    shared_url = ShareUrl(
+        url_slug=random_slug,
+        image_id=source_image.id
+    )
+
+    database.add(shared_url)
+    database.commit()
+
+
+    return ImageShareUrlInfo(
+        full_url=f"{settings.base_http_url}/shared-image/{random_slug}",
+    )
+
+
+@app.get("/shared-image/{shared_image_slug}")
+def share_public_image(
+    database: SessionDependency,
+    storage: StorageDependency,
+    shared_image_slug: Annotated[str, Path(title="The slug of the shared image.")],
+):
+    shared_image_url = database.exec(
+        select(ShareUrl)
+            .where(ShareUrl.url_slug == shared_image_slug)
+    ).first()
+
+    if shared_image_url is None:
+        raise HTTPException(status_code=404, detail="No such shared image URL.")
+    
+
+    shared_image = database.exec(
+        select(Image)
+            .where(Image.id == shared_image_url.image_id)
+    ).first()
+
+    if shared_image is None:
+        raise HTTPException(status_code=404, detail="No such shared image URL.")
+    
+    intermediate_image_buffer = SpooledTemporaryFile(mode="w+b")
+
+    storage.download_file(shared_image.file_path, intermediate_image_buffer)
+    intermediate_image_buffer.seek(0, os.SEEK_SET)
+
+    guessed_content_type = guess_type(shared_image.file_name)[0] or "text/plain"
+
+    return StreamingResponse(
+        intermediate_image_buffer,
+        status_code=200,
+        headers={
+            "Accept-Ranges": "bytes",
+            "Content-Disposition": f"attachment; filename=\"{shared_image.file_name}\""
+        },
+        media_type=guessed_content_type
+    )
 
 
 

@@ -20,6 +20,17 @@ class Image(SQLModel, table=True):
     owned_by_user_id: UUID
 
 
+class ShareUrl(SQLModel, table=True):
+    id: UUID = Field(
+        default_factory=uuid4,
+        primary_key=True
+    )
+
+    url_slug: str = Field(index=True)
+
+    image_id: UUID = Field(foreign_key="image.id")
+
+
 class ProcessingJob(SQLModel, table=True):
     id: UUID = Field(
         default_factory=uuid4,
